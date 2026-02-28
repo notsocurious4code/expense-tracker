@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from database import create_table, add_expense, get_expenses
 
-# Create table if it doesn't exist
+# Create table
 create_table()
 
 st.title("💰 Expense Tracker Dashboard")
@@ -29,12 +29,10 @@ if expenses:
     st.dataframe(df)
 
     # ---- Summary ----
-    st.subheader("Summary")
-
     total_spent = df["Amount"].sum()
     st.write(f"### Total Spent: ₹ {total_spent:.2f}")
 
-    # ---- Budget Alert ----
+    # ---- Budget ----
     st.subheader("Set Monthly Budget")
     budget = st.number_input("Enter your monthly budget", min_value=0.0, format="%.2f")
 
@@ -61,16 +59,20 @@ if expenses:
     monthly_trend = df.groupby("Month")["Amount"].sum()
     st.line_chart(monthly_trend)
 
-    # ---- Export to Excel ----
-st.subheader("Export Report")
+    # ---- Export to Excel (Cloud Safe) ----
+    st.subheader("Export Report")
 
-excel_file = "expense_report.xlsx"
-df.to_excel(excel_file, index=False)
+    if st.button("Generate Excel Report"):
+        excel_file = "expense_report.xlsx"
+        df.to_excel(excel_file, index=False)
 
-with open(excel_file, "rb") as file:
-    st.download_button(
-        label="Download Excel Report",
-        data=file,
-        file_name="expense_report.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        with open(excel_file, "rb") as f:
+            st.download_button(
+                label="Download Excel File",
+                data=f,
+                file_name="expense_report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+else:
+    st.info("No expenses added yet.")
