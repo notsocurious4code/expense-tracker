@@ -88,7 +88,7 @@ def login_user(username, password):
 
 
 # ------------------------
-# Expense Functions
+# Expense Functions (CRUD)
 # ------------------------
 
 def add_expense(user_id, date, category, description, amount):
@@ -116,3 +116,33 @@ def get_expenses(user_id):
     data = cursor.fetchall()
     conn.close()
     return data
+
+
+def delete_expense(expense_id, user_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM expenses WHERE id=? AND user_id=?",
+        (expense_id, user_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def update_expense(expense_id, user_id, date, category, description, amount):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE expenses
+        SET date=?, category=?, description=?, amount=?
+        WHERE id=? AND user_id=?
+        """,
+        (date, category, description, amount, expense_id, user_id)
+    )
+
+    conn.commit()
+    conn.close()

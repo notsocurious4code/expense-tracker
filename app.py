@@ -5,19 +5,24 @@ from database import (
     register_user,
     login_user,
     add_expense,
-    get_expenses
+    get_expenses,
+    delete_expense,
+    update_expense
 )
 
-# Initialize database
+# Initialize DB
 create_table()
 
 # Session state
 if "user" not in st.session_state:
     st.session_state.user = None
 
+if "edit_id" not in st.session_state:
+    st.session_state.edit_id = None
+
 
 # =========================
-# AUTHENTICATION SECTION
+# AUTH SECTION
 # =========================
 
 if st.session_state.user is None:
@@ -40,7 +45,7 @@ if st.session_state.user is None:
             else:
                 st.warning("Please fill all fields.")
 
-    elif choice == "Login":
+    if choice == "Login":
         if st.button("Login"):
             user = login_user(username, password)
             if user:
@@ -57,21 +62,24 @@ if st.session_state.user is None:
 
 else:
 
-    st.title("💰 Expense Tracker Dashboard")
+    user_id = st.session_state.user[0]
+    username = st.session_state.user[1]
 
-    st.sidebar.write(f"Logged in as: {st.session_state.user[1]}")
+    st.title("💰 Expense Tracker Dashboard")
+    st.sidebar.write(f"Logged in as: {username}")
 
     if st.sidebar.button("Logout"):
         st.session_state.user = None
         st.rerun()
 
-    user_id = st.session_state.user[0]
-
     # ---- Add Expense ----
     st.header("Add New Expense")
 
     date = st.date_input("Date")
-    category = st.selectbox("Category", ["Food", "Transport", "Shopping", "Bills", "Entertainment", "Other"])
+    category = st.selectbox(
+        "Category",
+        ["Food", "Transport", "Shopping", "Bills", "Entertainment", "Other"]
+    )
     description = st.text_input("Description")
     amount = st.number_input("Amount", min_value=0.0, format="%.2f")
 
@@ -86,14 +94,84 @@ else:
     expenses = get_expenses(user_id)
 
     if expenses:
-        df = pd.DataFrame(expenses, columns=["ID", "Date", "Category", "Description", "Amount"])
-        st.dataframe(df)
+        df = pd.DataFrame(
+            expenses,
+            columns=["ID", "Date", "Category", "Description", "Amount"]
+        )
 
-        # Summary
+        # Display with Edit/Delete buttons
+        for index, row in df.iterrows():
+
+            col1, col2, col3 = st.columns([5, 1, 1])
+
+            col1.write(
+                f"{row['Date']} | {row['Category']} | {row['Description']} | ₹ {row['Amount']}"
+            )
+
+            if col2.button("Delete", key=f"delete_{row['ID']}"):
+                delete_expense(row["ID"], user_id)
+                st.success("Expense deleted.")
+                st.rerun()
+
+            if col3.button("Edit", key=f"edit_{row['ID']}"):
+                st.session_state.edit_id = row["ID"]
+
+        # ---- Edit Form ----
+        if st.session_state.edit_id:
+
+            edit_row = df[df["ID"] == st.session_state.edit_id].iloc[0]
+
+            st.subheader("Edit Expense")
+
+            new_date = st.date_input(
+                "Edit Date",
+                pd.to_datetime(edit_row["Date"])
+            )
+
+            categories = ["Food", "Transport", "Shopping", "Bills", "Entertainment", "Other"]
+
+            new_category = st.selectbox(
+                "Edit Category",
+                categories,
+                index=categories.index(edit_row["Category"])
+            )
+
+            new_description = st.text_input(
+                "Edit Description",
+                value=edit_row["Description"]
+            )
+
+            new_amount = st.number_input(
+                "Edit Amount",
+                value=float(edit_row["Amount"]),
+                min_value=0.0,
+                format="%.2f"
+            )
+
+            col1, col2 = st.columns(2)
+
+            if col1.button("Update Expense"):
+                update_expense(
+                    st.session_state.edit_id,
+                    user_id,
+                    str(new_date),
+                    new_category,
+                    new_description,
+                    new_amount
+                )
+                st.success("Expense updated.")
+                st.session_state.edit_id = None
+                st.rerun()
+
+            if col2.button("Cancel"):
+                st.session_state.edit_id = None
+                st.rerun()
+
+        # ---- Summary ----
         total_spent = df["Amount"].sum()
         st.write(f"### Total Spent: ₹ {total_spent:.2f}")
 
-        # Budget
+        # ---- Budget ----
         st.subheader("Set Monthly Budget")
         budget = st.number_input("Enter your monthly budget", min_value=0.0, format="%.2f")
 
@@ -103,7 +181,7 @@ else:
             else:
                 st.success("✅ You are within budget.")
 
-        # Category-wise Spending
+        # ---- Charts ----
         category_summary = df.groupby("Category")["Amount"].sum()
 
         st.subheader("Spending by Category")
@@ -112,7 +190,6 @@ else:
         st.subheader("Category Distribution")
         st.pyplot(category_summary.plot.pie(autopct="%1.1f%%").figure)
 
-        # Monthly Trend
         st.subheader("Monthly Spending Trend")
         df["Date"] = pd.to_datetime(df["Date"])
         df["Month"] = df["Date"].dt.to_period("M")
@@ -120,7 +197,7 @@ else:
         monthly_trend = df.groupby("Month")["Amount"].sum()
         st.line_chart(monthly_trend)
 
-        # Export to Excel
+        # ---- Excel Export ----
         st.subheader("Export Report")
 
         if st.button("Generate Excel Report"):
